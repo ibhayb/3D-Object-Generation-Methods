@@ -1,0 +1,21 @@
+images/
+models/
+configs/
+objects/
+shap_e_model_cache/
+
+# Ignore Python bytecode files
+*.pyc
+*.pyo
+__pycache__/
+
+# Ignore IDE configuration files
+.vscode/
+.idea/
+
+# Ignore log files
+*.log
+
+# Ignore virtual environment folders
+venv/
+env/
