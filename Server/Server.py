@@ -1,9 +1,11 @@
 from flask import Flask, request, jsonify, send_file
 import subprocess
 import os
-
+import random
+from pathlib import Path
 from rembg import remove
 from PIL import Image
+import time
 
 
 app = Flask(__name__)
@@ -23,31 +25,58 @@ def remove_background(input_image):
 
     return output_image
 
-def run_model_in_env(model_name, prompt):
-    file_name = prompt.replace(" ","_")
-    output_file = f"objects/{file_name}.obj"  # Ensure this path matches the model's output
+def generate_seed():
+    return random.randint(1,999999)
 
+def log_attempt(model_name, subject_id, attempt, prompt, seed, complexity, type_completion_time, image_generation_time, object_generation_time, path,file_name):
+      # image_generation_time = generation time of image, object_generation_time = generation time of 3d object
+      log_file = f"{path}/{subject_id}_{model_name}_log.txt"
+      # Check if log file is empty and write header if needed
+      if not os.path.exists(log_file) or os.stat(log_file).st_size == 0:
+          with open(log_file, "w") as f:
+              f.write("subject_id,attempt,prompt,seed,complexity,type_completion_time,image_generation_time,object_generation_time,method,file_name\n")
+                    
+      with open(log_file, "a") as f:
+        f.write(f"{subject_id},{attempt},{prompt},{seed},{complexity},{type_completion_time},{image_generation_time},{object_generation_time},{model_name},{file_name}\n")
+
+def run_model_in_env(model_name, prompt, subject_id, complexity, type_completion_time):
+    file_name = ""
+    seed = generate_seed()
+    image_generation_time = 0
+    object_generation_time = 0
     # Define the environment for each model
-    if model_name == "text-3d":
-        command = f'conda run -n shap-e python "C:/Users/FRA-UAS MR-Labor/Documents/MMI-3D/shap-e/shap_e/examples/text_to_3d.py" --prompt "{prompt}"'
-    elif model_name == "text-image":
-        command = f'conda run -n ldm python "C:/Users/FRA-UAS MR-Labor/Documents/MMI-3D/stable-diffusion/scripts/txt2img.py" --prompt "{prompt}" --plms --skip_grid --n_samples 4 --n_iter 1 --outdir "images/"'
-    elif model_name == "image-3d":
-        image = remove_background(prompt)
-        command = f'conda run -n shap-e python "C:/Users/FRA-UAS MR-Labor/Documents/MMI-3D/shap-e/shap_e/examples/image_to_3d.py" --image "{image}"'
-
+    if model_name == "3D":
+        # first generate the image with perflow
+        output_path = Path(f'results/{subject_id}/3D/')  # Convert string to Path
+        num_files = len(list(output_path.glob("*.glb")))  # Count files in directory
+        file_name = f"{complexity}_{seed}_{num_files + 1}"  # Use f-string for cleaner formatting
+        command = f'conda run -n perflow python "C:/Users/FRA-UAS MR-Labor/Documents/MMI-3D/piecewise-rectified-flow/demo.py" --prompt "{prompt}" --seed {seed} --output_dir {output_path} --output_file_name {file_name}'
+        print("Method 3D: Running perflow", command)
+        start_time = time.time()
+        subprocess.run(command, shell=True, check=True)
+        image_generation_time = time.time() - start_time
+        # use generated image with TripoSR for 3D Object
+        command = f'conda run -n TripoSR python "C:/Users/FRA-UAS MR-Labor/Documents/MMI-3D/TripoSR/run.py" {output_path}\{file_name}.png --output-dir {output_path} --output_file_name {file_name} --model-save-format glb'
+        start_time = time.time()
+        subprocess.run(command, shell=True, check=True)
+        object_generation_time = time.time() - start_time
+    elif model_name == "2D":
+        output_path = Path(f'results/{subject_id}/2D/')  # Convert string to Path
+        num_files = len(list(output_path.glob("*.png")))  # Count files in directory
+        file_name = f"{complexity}_{seed}_{num_files + 1}"  # Use f-string for cleaner formatting
+        command = f'conda run -n perflow python "C:/Users/FRA-UAS MR-Labor/Documents/MMI-3D/piecewise-rectified-flow/demo.py" --prompt "{prompt}" --seed {seed} --output_dir {output_path} --output_file_name {file_name}'
+        start_time = time.time()
+        subprocess.run(command, shell=True, check=True)
+        image_generation_time = time.time() - start_time
     else:
         raise ValueError("Invalid model name")
 
     try:
-        print(f'Running {model_name} script with prompt: {prompt}')
-        print(command)
-        subprocess.run(command, shell=True, check=True)
-        print("outputfile:" , output_file)
-        if output_file and os.path.exists(output_file):
-            return output_file
-        else:
-            raise FileNotFoundError("Output file not generated.")
+        log_attempt(model_name,subject_id,num_files+1,prompt,seed,complexity,type_completion_time,image_generation_time,object_generation_time,output_path,file_name)
+        # if output_file and os.path.exists(output_file):
+        #     return output_file
+        # else:
+        #     raise FileNotFoundError("Output file not generated.")
     except subprocess.CalledProcessError as e:
         raise RuntimeError(f"Model execution failed: {e.stderr}")
 
@@ -58,8 +87,11 @@ def generate_3d_object():
         prompt_data = request.json
         model_type = prompt_data.get("model_type")  # model_1 or model_2
         prompt = prompt_data.get("prompt")
-        print(prompt_data)
-        output_file = run_model_in_env(model_type, prompt)
+        subject_id = prompt_data.get("subject_id")
+        complexity = prompt_data.get("complexity")
+        type_completion_time = prompt_data.get("type_completion_time")
+
+        output_file = run_model_in_env(model_type, prompt, subject_id, complexity, type_completion_time)
         print(output_file)
         # Send the .obj file content as response
         return send_file(output_file, as_attachment=True, download_name="model.obj")
