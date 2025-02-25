@@ -7,9 +7,9 @@ api_url = "http://127.0.0.1:5000/generate-object"  # Update if Flask API runs on
 
 # Sample input data
 input_data = {
-    "subject_id": 7,
-    "complexity" : "easy",
-    "model_type": "3D",  # Options: "2D", "3D"
+    "subject_id": 8,
+    "complexity": "easy",
+    "model_type": "2D",  # Options: "2D", "3D"
     "prompt": "A single golden feather – A highly detailed, realistic golden feather with delicate textures.",
     "type_completion_time": 122,
 }
@@ -37,14 +37,17 @@ def main():
 
         # Handle response
         if response.status_code == 200:
-            # Check if the response contains an `.obj` file
+            # Check Content-Disposition header to determine the file type
             content_disposition = response.headers.get("Content-Disposition", "")
-            if "attachment" in content_disposition and ".obj" in content_disposition:
-                # Save the file locally
+            
+            if "attachment" in content_disposition:
                 filename = content_disposition.split("filename=")[-1].strip('"')
-                save_response_content(response, filename)
+                
+                if filename.endswith(".png") or filename.endswith(".glb"):
+                    save_response_content(response, filename)
+                else:
+                    print("Unknown file format received.")
             else:
-                # Print the response text if no file is returned
                 print("Response from API:", response.text)
         else:
             # Handle errors

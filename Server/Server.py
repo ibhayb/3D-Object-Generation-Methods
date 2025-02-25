@@ -60,6 +60,7 @@ def run_model_in_env(model_name, prompt, subject_id, complexity, type_completion
         start_time = time.time()
         subprocess.run(command, shell=True, check=True)
         object_generation_time = time.time() - start_time
+        output_file_path =  Path(f'results/{subject_id}/3D/{file_name}.glb')
     elif model_name == "2D":
         output_path = Path(f'results/{subject_id}/2D/')  # Convert string to Path
         num_files = len(list(output_path.glob("*.png")))  # Count files in directory
@@ -68,15 +69,18 @@ def run_model_in_env(model_name, prompt, subject_id, complexity, type_completion
         start_time = time.time()
         subprocess.run(command, shell=True, check=True)
         image_generation_time = time.time() - start_time
+        output_file_path =  Path(f'results/{subject_id}/2D/{file_name}.png')
     else:
         raise ValueError("Invalid model name")
 
     try:
         log_attempt(model_name,subject_id,num_files+1,prompt,seed,complexity,type_completion_time,image_generation_time,object_generation_time,output_path,file_name)
-        # if output_file and os.path.exists(output_file):
-        #     return output_file
-        # else:
-        #     raise FileNotFoundError("Output file not generated.")
+        
+        if output_file_path and os.path.exists(output_file_path):
+            return output_file_path
+        else:
+            raise FileNotFoundError("Output file not generated.")
+        
     except subprocess.CalledProcessError as e:
         raise RuntimeError(f"Model execution failed: {e.stderr}")
 
@@ -94,7 +98,12 @@ def generate_3d_object():
         output_file = run_model_in_env(model_type, prompt, subject_id, complexity, type_completion_time)
         print(output_file)
         # Send the .obj file content as response
-        return send_file(output_file, as_attachment=True, download_name="model.obj")
+        if model_type == "3D":
+            # send glb file
+            return send_file(output_file, as_attachment=True, download_name="obj.glb")
+        else:
+            # send image
+            return send_file(output_file, as_attachment=True, download_name="img.png")
     except Exception as e:
         return jsonify({"error": str(e)}), 400
 
