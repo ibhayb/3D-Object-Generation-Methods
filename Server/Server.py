@@ -6,7 +6,7 @@ from pathlib import Path
 from rembg import remove
 from PIL import Image
 import time
-
+import datetime
 
 app = Flask(__name__)
 
@@ -28,18 +28,18 @@ def remove_background(input_image):
 def generate_seed():
     return random.randint(1,999999)
 
-def log_attempt(model_name, subject_id, attempt, prompt, seed, complexity, type_completion_time, image_generation_time, object_generation_time, path,file_name):
+def log_attempt(model_name, subject_id, attempt, prompt, seed, complexity, type_completion_time, image_generation_time, object_generation_time, path,file_name, object_to_be_generated):
       # image_generation_time = generation time of image, object_generation_time = generation time of 3d object
       log_file = f"{path}/{subject_id}_{model_name}_log.txt"
       # Check if log file is empty and write header if needed
       if not os.path.exists(log_file) or os.stat(log_file).st_size == 0:
           with open(log_file, "w") as f:
-              f.write("subject_id,attempt,prompt,seed,complexity,type_completion_time,image_generation_time,object_generation_time,method,file_name\n")
+              f.write("subject_id,attempt,prompt,seed,complexity,type_completion_time,image_generation_time,object_generation_time,method,file_name,datetime,object_to_be_generated\n")
                     
       with open(log_file, "a") as f:
-        f.write(f"{subject_id},{attempt},{prompt},{seed},{complexity},{type_completion_time},{image_generation_time},{object_generation_time},{model_name},{file_name}\n")
+        f.write(f"{subject_id},{attempt},{prompt},{seed},{complexity},{type_completion_time},{image_generation_time},{object_generation_time},{model_name},{file_name},{datetime.datetime.now()},{object_to_be_generated}\n")
 
-def run_model_in_env(model_name, prompt, subject_id, complexity, type_completion_time):
+def run_model_in_env(model_name, prompt, subject_id, complexity, type_completion_time, object_to_be_generated):
     file_name = ""
     seed = generate_seed()
     image_generation_time = 0
@@ -74,7 +74,7 @@ def run_model_in_env(model_name, prompt, subject_id, complexity, type_completion
         raise ValueError("Invalid model name")
 
     try:
-        log_attempt(model_name,subject_id,num_files+1,prompt,seed,complexity,type_completion_time,image_generation_time,object_generation_time,output_path,file_name)
+        log_attempt(model_name,subject_id,num_files+1,prompt,seed,complexity,type_completion_time,image_generation_time,object_generation_time,output_path,file_name,object_to_be_generated)
         
         if output_file_path and os.path.exists(output_file_path):
             return output_file_path
@@ -94,8 +94,9 @@ def generate_3d_object():
         subject_id = prompt_data.get("subject_id")
         complexity = prompt_data.get("complexity")
         type_completion_time = prompt_data.get("type_completion_time")
+        object_to_be_generated = prompt_data.get("object_to_be_generated")
 
-        output_file = run_model_in_env(model_type, prompt, subject_id, complexity, type_completion_time)
+        output_file = run_model_in_env(model_type, prompt, subject_id, complexity, type_completion_time, object_to_be_generated)
         print(output_file)
         # Send the .obj file content as response
         if model_type == "3D":

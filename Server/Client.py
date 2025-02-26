@@ -7,11 +7,12 @@ api_url = "http://127.0.0.1:5000/generate-object"  # Update if Flask API runs on
 
 # Sample input data
 input_data = {
-    "subject_id": 8,
+    "subject_id": 55,
     "complexity": "easy",
-    "model_type": "2D",  # Options: "2D", "3D"
-    "prompt": "A single golden feather – A highly detailed, realistic golden feather with delicate textures.",
+    "model_type": "3D",  # Options: "2D", "3D"
+    "prompt": "a husky dog",
     "type_completion_time": 122,
+    "object_to_be_generated": "ball",
 }
 
 def save_response_content(response, filename):
